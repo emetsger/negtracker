@@ -1,4 +1,4 @@
-package neghandler
+package main
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const(
+const (
 	STARTING = iota
 	RUNNING
 	STOPPING
@@ -24,8 +24,8 @@ var config *Configuration
 var state State
 
 type Configuration struct {
-	Host string
-	Port string
+	Host   string
+	Port   string
 	Secure bool
 }
 

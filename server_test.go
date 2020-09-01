@@ -1,4 +1,4 @@
-package neghandler
+package main
 
 import (
 	"bytes"
