@@ -1,14 +1,19 @@
+// +build integration
+
 package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/emetsger/negtracker/model"
 	"github.com/emetsger/negtracker/urlutil/strip"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +36,17 @@ func (v *verifier) testState(t *testing.T) {
 }
 
 var MyVerifier *verifier
+
+var sampleNeg = model.Neg{
+	ID:          "negId",
+	Film:        "FP4",
+	EI:          100,
+	Developer:   "Pyrocat HD",
+	FrameNumber: "8",
+	Tags:        []string{"druid hill", "daffodil", "spring"},
+	Description: "Druid Hill",
+	Format:      "120",
+}
 
 func TestMain(m *testing.M) {
 	defer func() {
@@ -77,18 +93,29 @@ func Test_ServerMain(t *testing.T) {
 
 // test creating a Neg
 func Test_ServerNegPost(t *testing.T) {
+	body, err := json.Marshal(sampleNeg)
+	assert.Nil(t, err)
 	req, _ := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
-		nil)
+		bytes.NewBuffer(body))
+
+	// TODO accept and content-type header support/verification
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
 		assert.Equal(t, 201, res.StatusCode)
+		assert.Equal(t, "text/plain", res.Header.Get("Content-Type"))
+		assert.NotEqual(t, "", res.Header.Get("Content-Length"))
+		atoi, _ := strconv.Atoi(res.Header.Get("Content-Length"))
+		assert.True(t, atoi > 0)
 	}).testState(t)
 
 	attempt(req, MyVerifier)
 }
 
-// test retrieving a Neg
+// TODO fix ids - test retrieving a Neg
 func Test_ServerNegGet(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet,
 		fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),

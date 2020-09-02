@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/emetsger/negtracker/handler/neg"
+	"github.com/emetsger/negtracker/store/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net"
 	"net/http"
@@ -31,6 +33,15 @@ type Configuration struct {
 
 type State int
 
+var mongoConfig = &mongo.MongoConfig{
+	DbUri:         getEnvOrDefault(mongo.ENV_DB_URI, "mongodb://localhost:27017"),
+	DbName:        getEnvOrDefault(mongo.ENV_DB_NAME, "negtracker"),
+	NegCollection: getEnvOrDefault(mongo.ENV_DB_NEG_COLLECTION, "neg"),
+	Opts:          options.Client().SetAppName("negtracker").SetServerSelectionTimeout(5 * time.Second),
+}
+
+var mongoStore = &mongo.MongoStore{}
+
 func main() {
 	state = STARTING
 	pong := func(w http.ResponseWriter, r *http.Request) {
@@ -38,8 +49,12 @@ func main() {
 		_, _ = w.Write([]byte("Pong!"))
 	}
 
+	mongoStore.Configure(mongoConfig)
+
 	http.HandleFunc("/Ping", pong)
-	http.HandleFunc("/neg", neg.NegHandler)
+	negHandler := neg.NewHandler(mongoStore)
+	http.HandleFunc("/neg", negHandler)
+	http.HandleFunc("/neg/", negHandler)
 
 	s = &http.Server{}
 	config = configure(s)

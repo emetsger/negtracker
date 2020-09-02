@@ -26,6 +26,7 @@ var config = &MongoConfig{
 	NegCollection: os.Getenv(ENV_DB_NEG_COLLECTION),
 	Opts:          options.Client().SetAppName("mongostore_test").SetServerSelectionTimeout(5 * time.Second),
 }
+
 var underTest = &MongoStore{}
 
 var sampleNeg = model.Neg{
