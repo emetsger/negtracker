@@ -9,7 +9,12 @@ services:
   db:
     image: mongo:3.6.19-xenial
     ports:
-    - "27017:27017"
+      - "27017:27017"
 
   index:
     image: elasticsearch:7.9.0
+    environment:
+      discovery.type: "single-node"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
