@@ -28,7 +28,7 @@ var negHandler = func(w http.ResponseWriter, r *http.Request) {
 	h.ServeHTTP(w, r)
 }
 
-func NewHandler(store store.Api) http.HandlerFunc {
+func NewHandler(s store.Api) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var h http.HandlerFunc
 		switch r.Method {
@@ -40,19 +40,7 @@ func NewHandler(store store.Api) http.HandlerFunc {
 				}
 			} else {
 				neg := model.Neg{}
-				if err := store.Retrieve(id, &neg); err != nil {
-					h = func(w http.ResponseWriter, r *http.Request) {
-						handler.ServerError(w, r)
-					}
-				} else {
-					if body, err := json.Marshal(neg); err != nil {
-						h = func(w http.ResponseWriter, r *http.Request) {
-							handler.ServerError(w, r)
-						}
-					} else {
-						h = wrap(body, 200, "application/json", r, w)
-					}
-				}
+				h = get(w, r, s, id, neg)
 			}
 		case http.MethodPost:
 			buf := &bytes.Buffer{}
@@ -64,22 +52,7 @@ func NewHandler(store store.Api) http.HandlerFunc {
 				}
 			} else {
 				n := &model.Neg{}
-				if err := json.Unmarshal(buf.Bytes(), n); err != nil {
-					// malformed body
-					h = func(w http.ResponseWriter, r *http.Request) {
-						handler.MalformedRequest(w, r)
-					}
-				} else {
-					if id, err := store.Store(*n); err != nil {
-						// error storing the neg
-						h = func(w http.ResponseWriter, r *http.Request) {
-							handler.ServerError(w, r)
-						}
-					} else {
-						// return a 201 TODO decide on id approach
-						h = wrap([]byte("TODO URL "+id), 201, "text/plain", r, w)
-					}
-				}
+				h = post(w, r, buf, n, s)
 			}
 		default:
 			h = func(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +62,45 @@ func NewHandler(store store.Api) http.HandlerFunc {
 
 		h.ServeHTTP(w, r)
 	}
+}
+
+func post(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer, t interface{}, s store.Api) (h http.HandlerFunc) {
+	if err := json.Unmarshal(buf.Bytes(), t); err != nil {
+		// malformed body
+		h = func(w http.ResponseWriter, r *http.Request) {
+			handler.MalformedRequest(w, r)
+		}
+	} else {
+		if id, err := s.Store(t); err != nil {
+			// error storing the neg
+			h = func(w http.ResponseWriter, r *http.Request) {
+				handler.ServerError(w, r)
+			}
+		} else {
+			// return a 201 TODO decide on id approach
+			h = wrap([]byte("TODO URL "+id), 201, "text/plain", r, w)
+		}
+	}
+	return h
+}
+
+// Returns an http.HandlerFunc capable of retrieving the business object specified by id and type from the storage
+// layer.  The business object is marshaled to JSON, and written to the response.
+func get(w http.ResponseWriter, r *http.Request, s store.Api, id string, t interface{}) (h http.HandlerFunc) {
+	if err := s.Retrieve(id, &t); err != nil {
+		h = func(w http.ResponseWriter, r *http.Request) {
+			handler.ServerError(w, r)
+		}
+	} else {
+		if body, err := json.Marshal(t); err != nil {
+			h = func(w http.ResponseWriter, r *http.Request) {
+				handler.ServerError(w, r)
+			}
+		} else {
+			h = wrap(body, 200, "application/json", r, w)
+		}
+	}
+	return h
 }
 
 // TODO: test, e.g., when the parsed id is not valid, things panic in the store layer, and empty response is returned
