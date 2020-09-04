@@ -45,7 +45,8 @@ func TestMongoStore_StoreAndRetrieve(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEqual(t, "", id)
 
-	neg, err := underTest.Retrieve(id)
+	neg := model.Neg{}
+	err = underTest.Retrieve(id, &neg)
 	assert.Nil(t, err)
 	assert.NotNil(t, neg)
 

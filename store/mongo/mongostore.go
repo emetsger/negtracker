@@ -36,14 +36,17 @@ type MongoStore struct {
 	negCol *mongo.Collection
 }
 
-func (m *MongoStore) Retrieve(id string) (obj interface{}, err error) {
+func (m *MongoStore) Retrieve(id string, t interface{}) (err error) {
 	var objid primitive.ObjectID
 	if objid, err = primitive.ObjectIDFromHex(id); err != nil {
 		panic(fmt.Sprintf("Error creating ObjectId from id '%s'", id))
 	}
 
 	res := m.negCol.FindOne(m.ctx, bson.M{"_id": objid})
-	err = res.Decode(&obj)
+	//v := &model.Neg{
+	//	ID: "moo",
+	//}
+	err = res.Decode(t)
 
 	return
 }

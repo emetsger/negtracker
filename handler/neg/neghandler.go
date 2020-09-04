@@ -39,7 +39,8 @@ func NewHandler(store store.Api) http.HandlerFunc {
 					handler.MalformedRequest(w, r)
 				}
 			} else {
-				if neg, err := store.Retrieve(id); err != nil {
+				neg := model.Neg{}
+				if err := store.Retrieve(id, &neg); err != nil {
 					h = func(w http.ResponseWriter, r *http.Request) {
 						handler.ServerError(w, r)
 					}

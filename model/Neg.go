@@ -20,11 +20,10 @@ func (n *Neg) Store(s store.Api) (id string, err error) {
 }
 
 func (n *Neg) Retrieve(s store.Api, id string) (err error) {
-	if obj, err := s.Retrieve(id); err != nil {
+	var i interface{}
+	i = n
+	if err := s.Retrieve(id, &i); err != nil {
 		return err
-	} else {
-		res := obj.(Neg)
-		n.copyFrom(res)
 	}
 
 	return nil
