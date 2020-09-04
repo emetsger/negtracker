@@ -10,12 +10,6 @@ import (
 	"strings"
 )
 
-const (
-	ENV_DB_URI            = "DB_URI"
-	ENV_DB_NAME           = "DB_NAME"
-	ENV_DB_NEG_COLLECTION = "DB_NEG_COLLECTION"
-)
-
 // Represents the configuration used for the MongoDB driver
 type MongoConfig struct {
 	// env var DB_URI
