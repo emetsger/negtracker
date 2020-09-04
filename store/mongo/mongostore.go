@@ -3,7 +3,6 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"github.com/emetsger/negtracker/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -37,23 +36,23 @@ type MongoStore struct {
 	negCol *mongo.Collection
 }
 
-func (m *MongoStore) Retrieve(id string) (neg model.Neg, err error) {
+func (m *MongoStore) Retrieve(id string) (obj interface{}, err error) {
 	var objid primitive.ObjectID
 	if objid, err = primitive.ObjectIDFromHex(id); err != nil {
 		panic(fmt.Sprintf("Error creating ObjectId from id '%s'", id))
 	}
 
 	res := m.negCol.FindOne(m.ctx, bson.M{"_id": objid})
-	err = res.Decode(&neg)
+	err = res.Decode(&obj)
 
 	return
 }
 
-func (m *MongoStore) Store(n model.Neg) (id string, err error) {
+func (m *MongoStore) Store(obj interface{}) (id string, err error) {
 	var data []byte
 	var res *mongo.InsertOneResult
 
-	if data, err = bson.Marshal(n); err == nil {
+	if data, err = bson.Marshal(obj); err == nil {
 		if res, err = m.negCol.InsertOne(m.ctx, data); err == nil {
 			id = res.InsertedID.(primitive.ObjectID).Hex()
 		}
