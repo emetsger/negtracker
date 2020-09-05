@@ -2,10 +2,17 @@ package model
 
 import (
 	"github.com/emetsger/negtracker/store"
+	"time"
 )
 
+type Entity struct {
+	ID      string
+	Created time.Time
+	Updated time.Time
+}
+
 type Neg struct {
-	ID          string
+	Entity
 	Film        string
 	EI          int
 	Developer   string
