@@ -9,20 +9,31 @@ import (
 	"time"
 )
 
+const (
+	weak = "W/"
+	quot = "\""
+)
+
 // Provides for the encoding of common data types as ETags.
-// The caller is responsible for determining the tokens that comprise a given ETag, and encodes them using this
-// interface.  The result of calling an Encode* method will be a base64 string derived from values supplied by
-// the Add* or EncodeWith(...) methods.
 //
-// It is considered an error execute EncodeWith(...) or Encode() with any empty state.
+// The caller is responsible for determining the tokens that comprise a given ETag, and whether it is weak or strong.
+// The result of calling an Encode* method will be a base64 string derived from values supplied by the Add* or
+// EncodeWith(...) methods.
+//
+// It is considered an error execute EncodeWith(...) or Encode() with empty state.
 type Encoder interface {
 
-	// Encodes the supplied tokens as a base64 string
-	EncodeWith(tokens ...string) string
+	// Encodes the supplied tokens as a base64 string, surrounded by quotation marks.  At least one token is required,
+	// and all tokens must not be empty.
+	//
+	// If strong is false, the encoded ETag will be prefixed by 'W/'.
+	EncodeWith(strong bool, tokens ...string) string
 
-	// Encodes any state supplied by the Add methods as a base64 string
-	// It is an error to call Encode() when no tokens have been supplied.
-	Encode() string
+	// Encodes any state supplied by the Add methods as a base64 string, surrounded by quotation marks.
+	//
+	// It is an error to call Encode(bool) when no tokens have been supplied.
+	// If strong is false, the encoded ETag will be prefixed by 'W/'.
+	Encode(strong bool) string
 
 	// Add a byte token to be considered as an ETag input
 	AddByte(token []byte) Encoder
@@ -48,16 +59,16 @@ func NewEncoder() Encoder {
 	return &naiveEncoder{initState()}
 }
 
-func (e *naiveEncoder) EncodeWith(tokens ...string) string {
+func (e *naiveEncoder) EncodeWith(strong bool, tokens ...string) string {
 	// convert each attribute to a byte slice and add to the state
 	for i := range tokens {
 		e.AddByte([]byte(tokens[i]))
 	}
 
-	return e.Encode()
+	return e.Encode(strong)
 }
 
-func (e *naiveEncoder) Encode() string {
+func (e *naiveEncoder) Encode(strong bool) string {
 	switch len(e.state) {
 	case 0:
 		panic("etag: encoder has no state, this may be buggy behavior in the caller")
@@ -72,9 +83,14 @@ func (e *naiveEncoder) Encode() string {
 	buf := bytes.Buffer{}
 	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
 	defer func() { encoder.Close() }()
+	if !strong {
+		buf.Write([]byte(weak))
+	}
+	buf.Write([]byte(quot))
 	for i := range e.state {
 		encoder.Write(e.state[i])
 	}
+	buf.Write([]byte(quot))
 
 	e.state = initState()
 	return buf.String()
