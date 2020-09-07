@@ -19,7 +19,7 @@ var negHandler = func(w http.ResponseWriter, r *http.Request) {
 	var h http.HandlerFunc
 	switch r.Method {
 	case http.MethodGet:
-		h = wrap([]byte("Placeholder for returned Neg by ID"), 200, "application/json", r, w)
+		h = wrap([]byte("Placeholder for returned Neg by Id"), 200, "application/json", r, w)
 	case http.MethodPost:
 		h = wrap([]byte("Placeholder for creating a neg record"), 201, "text/plain", r, w)
 	default:

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/emetsger/negtracker/model"
-	"github.com/emetsger/negtracker/urlutil/strip"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -114,10 +113,10 @@ func Test_ServerNegPost(t *testing.T) {
 
 // TODO fix ids - test retrieving a Neg
 func Test_ServerNegGet(t *testing.T) {
-	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/neg", config.ListenUrl()),
 		bytes.NewBufferString(
 			`{
-					"ID": "",
+					"Id": "",
                     "Film": "FP4"
 				}`))
 
@@ -158,7 +157,7 @@ func Test_ServerNegGet(t *testing.T) {
 		created = &model.Neg{}
 		json.Unmarshal(asByte(res.Body), created)
 
-		// ID was populated
+		// Id was populated
 		require.True(t, len(created.Id) > 0)
 
 		// We have the neg we expect - the one we posted above
