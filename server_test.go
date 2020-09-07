@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 
 func Test_ServerMain(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet,
-		fmt.Sprintf("%s/Ping", strip.TrailingSlashes(config.ListenUrl())),
+		fmt.Sprintf("%s/Ping", config.ListenUrl()),
 		nil)
 
 	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
@@ -93,7 +93,7 @@ func Test_ServerNegPost(t *testing.T) {
 	body, err := json.Marshal(sampleNeg)
 	assert.Nil(t, err)
 	req, _ := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
+		fmt.Sprintf("%s/neg", config.ListenUrl()),
 		bytes.NewBuffer(body))
 
 	// TODO accept and content-type header support/verification
@@ -136,7 +136,7 @@ func Test_ServerNegGet(t *testing.T) {
 	log.Printf("Created neg with id %s", id)
 
 	req, err = http.NewRequest(http.MethodGet,
-		fmt.Sprintf("%s/neg/%s", strip.TrailingSlashes(config.ListenUrl()), id), nil)
+		fmt.Sprintf("%s/neg/%s", config.ListenUrl(), id), nil)
 
 	require.NotNil(t, req)
 	require.Nil(t, err)
@@ -179,7 +179,7 @@ func Test_ServerNegGet(t *testing.T) {
 
 func Test_ServerNegNotImpl(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodTrace,
-		fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
+		fmt.Sprintf("%s/neg", config.ListenUrl()),
 		nil)
 
 	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {

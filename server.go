@@ -6,6 +6,7 @@ import (
 	"github.com/emetsger/negtracker/handler/neg"
 	"github.com/emetsger/negtracker/store"
 	"github.com/emetsger/negtracker/store/mongo"
+	"github.com/emetsger/negtracker/urlutil/strip"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net"
@@ -111,5 +112,5 @@ func (c *Configuration) ListenUrl() string {
 		scheme = "https"
 	}
 
-	return fmt.Sprintf("%s://%s:%s/", scheme, c.Host, c.Port)
+	return strip.TrailingSlashes(fmt.Sprintf("%s://%s:%s/", scheme, c.Host, c.Port))
 }
