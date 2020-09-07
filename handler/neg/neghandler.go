@@ -3,6 +3,7 @@ package neg
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/emetsger/negtracker/handler"
 	"github.com/emetsger/negtracker/id"
@@ -39,7 +40,7 @@ func NewHandler(s store.Api) http.HandlerFunc {
 			if id := parseIdFromUri(r.URL.String()); id == "" {
 				// id could not be parsed from the URI
 				h = func(w http.ResponseWriter, r *http.Request) {
-					handler.MalformedRequest(w, r)
+					handler.MalformedRequest(w, r, "Malformed request")
 				}
 			} else {
 				neg := &model.Neg{}
@@ -51,7 +52,7 @@ func NewHandler(s store.Api) http.HandlerFunc {
 			if buf.Len() < 1 {
 				// no request body, nothing to create
 				h = func(w http.ResponseWriter, r *http.Request) {
-					handler.MalformedRequest(w, r)
+					handler.MalformedRequest(w, r, "Malformed request")
 				}
 			} else {
 				n := &model.Neg{}
@@ -71,7 +72,7 @@ func post(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer, t interface
 	if err := json.Unmarshal(buf.Bytes(), t); err != nil {
 		// malformed body
 		h = func(w http.ResponseWriter, r *http.Request) {
-			handler.MalformedRequest(w, r)
+			handler.MalformedRequest(w, r, "Malformed request")
 		}
 	} else {
 		if e, ok := t.(model.WebResource); ok == true {
@@ -83,8 +84,14 @@ func post(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer, t interface
 		}
 		if _, err := s.Store(t); err != nil {
 			// error storing the neg
-			h = func(w http.ResponseWriter, r *http.Request) {
-				handler.ServerError(w, r)
+			if errors.Is(err, store.DuplicateKeyErr) {
+				h = func(w http.ResponseWriter, r *http.Request) {
+					handler.Conflict(w, r, err.Error())
+				}
+			} else {
+				h = func(w http.ResponseWriter, r *http.Request) {
+					handler.ServerError(w, r)
+				}
 			}
 		} else {
 			// return a 201 TODO decide on id approach
