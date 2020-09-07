@@ -42,7 +42,7 @@ func NewHandler(s store.Api) http.HandlerFunc {
 					handler.MalformedRequest(w, r)
 				}
 			} else {
-				neg := model.Neg{}
+				neg := &model.Neg{}
 				h = get(w, r, s, id, neg)
 			}
 		case http.MethodPost:
@@ -102,7 +102,7 @@ func post(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer, t interface
 // Returns an http.HandlerFunc capable of retrieving the business object specified by id and type from the storage
 // layer.  The business object is marshaled to JSON, and written to the response.
 func get(w http.ResponseWriter, r *http.Request, s store.Api, id string, t interface{}) (h http.HandlerFunc) {
-	if err := s.Retrieve(id, &t); err != nil {
+	if err := s.Retrieve(id, t); err != nil {
 		h = func(w http.ResponseWriter, r *http.Request) {
 			handler.ServerError(w, r)
 		}
@@ -112,6 +112,9 @@ func get(w http.ResponseWriter, r *http.Request, s store.Api, id string, t inter
 				handler.ServerError(w, r)
 			}
 		} else {
+			if e, ok := t.(model.WebResource); ok == true {
+				w.Header().Add("ETag", string(e.GetEtag()))
+			}
 			h = wrap(body, 200, "application/json", r, w)
 		}
 	}
@@ -132,7 +135,7 @@ func wrap(body []byte, status int, mediaType string, r *http.Request, w http.Res
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		w.Header().Set("Content-Type", mediaType)
-
+		// TODO: need to add Location header for POST but not have it for GET
 		if status > 199 && status < 600 {
 			w.WriteHeader(status)
 		}
