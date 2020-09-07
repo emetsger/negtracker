@@ -3,20 +3,23 @@ package neg
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/emetsger/negtracker/handler"
+	"github.com/emetsger/negtracker/id"
 	"github.com/emetsger/negtracker/model"
 	"github.com/emetsger/negtracker/store"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var negHandler = func(w http.ResponseWriter, r *http.Request) {
 	var h http.HandlerFunc
 	switch r.Method {
 	case http.MethodGet:
-		h = wrap([]byte("Placeholder for returned Neg by ID"), 200, "text/plain", r, w)
+		h = wrap([]byte("Placeholder for returned Neg by ID"), 200, "application/json", r, w)
 	case http.MethodPost:
 		h = wrap([]byte("Placeholder for creating a neg record"), 201, "text/plain", r, w)
 	default:
@@ -71,14 +74,26 @@ func post(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer, t interface
 			handler.MalformedRequest(w, r)
 		}
 	} else {
-		if id, err := s.Store(t); err != nil {
+		if e, ok := t.(model.WebResource); ok == true {
+			if e.GetId() == "" {
+				e.SetId(id.Mint())
+			}
+			e.SetCreated(time.Now())
+			e.SetUpdated(time.Now())
+		}
+		if _, err := s.Store(t); err != nil {
 			// error storing the neg
 			h = func(w http.ResponseWriter, r *http.Request) {
 				handler.ServerError(w, r)
 			}
 		} else {
 			// return a 201 TODO decide on id approach
-			h = wrap([]byte("TODO URL "+id), 201, "text/plain", r, w)
+			if e, ok := t.(model.WebResource); ok == true {
+				h = wrap([]byte(e.GetId()), 201, "text/plain", r, w)
+			} else {
+				panic(fmt.Sprintf("handler/neg: unable to determine id of created entity, unhandled type %T", t))
+			}
+
 		}
 	}
 	return h

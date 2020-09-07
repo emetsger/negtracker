@@ -9,7 +9,9 @@ import (
 	"github.com/emetsger/negtracker/model"
 	"github.com/emetsger/negtracker/urlutil/strip"
 	"github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -20,7 +22,6 @@ import (
 )
 
 type verifier struct {
-	TestState   *testing.T
 	Attempts    int
 	Client      *http.Client
 	ResVerifier func(t *testing.T, res *http.Response)
@@ -31,14 +32,10 @@ func (v *verifier) verifyFunc(f func(t *testing.T, res *http.Response)) *verifie
 	return v
 }
 
-func (v *verifier) testState(t *testing.T) {
-	v.TestState = t
-}
-
 var MyVerifier *verifier
 
 var sampleNeg = model.Neg{
-	ID:          "negId",
+	Id:          "negId",
 	Film:        "FP4",
 	EI:          100,
 	Developer:   "Pyrocat HD",
@@ -86,9 +83,9 @@ func Test_ServerMain(t *testing.T) {
 		_, _ = io.Copy(&buf, res.Body)
 		assert.Equal(t, 200, res.StatusCode)
 		assert.Equal(t, "Pong!", buf.String())
-	}).testState(t)
+	})
 
-	attempt(req, MyVerifier)
+	attempt(req, MyVerifier, t)
 }
 
 // test creating a Neg
@@ -110,22 +107,74 @@ func Test_ServerNegPost(t *testing.T) {
 		assert.NotEqual(t, "", res.Header.Get("Content-Length"))
 		atoi, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 		assert.True(t, atoi > 0)
-	}).testState(t)
+	})
 
-	attempt(req, MyVerifier)
+	attempt(req, MyVerifier, t)
 }
 
 // TODO fix ids - test retrieving a Neg
 func Test_ServerNegGet(t *testing.T) {
-	req, _ := http.NewRequest(http.MethodGet,
-		fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
-		nil)
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/neg", strip.TrailingSlashes(config.ListenUrl())),
+		bytes.NewBufferString(
+			`{
+					"ID": "",
+                    "Film": "FP4"
+				}`))
+
+	var err error
+	var id string
+	var created *model.Neg
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		require.Equal(t, 201, res.StatusCode)
+		// FIXME post should be setting a Location header and we should be reading that
+		id = asString(res.Body)
+		require.NotEqual(t, "", id)
+	})
+
+	attempt(req, MyVerifier, t)
+
+	log.Printf("Created neg with id %s", id)
+
+	req, err = http.NewRequest(http.MethodGet,
+		fmt.Sprintf("%s/neg/%s", strip.TrailingSlashes(config.ListenUrl()), id), nil)
+
+	require.NotNil(t, req)
+	require.Nil(t, err)
 
 	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
-		assert.Equal(t, 200, res.StatusCode)
-	}).testState(t)
+		require.Equal(t, 200, res.StatusCode)
 
-	attempt(req, MyVerifier)
+		// Etag tests
+		etag := res.Header.Get("ETag")
+		require.NotNil(t, etag)
+		require.True(t, len(etag) > 0)
+		// etag is strong for now
+		require.False(t, strings.HasPrefix(etag, "W/"))
+		require.True(t, strings.HasPrefix(etag, "\""))
+		require.True(t, strings.HasSuffix(etag, "\""))
+
+		// Body tests
+		require.NotNil(t, res.Body)
+		created = &model.Neg{}
+		json.Unmarshal(asByte(res.Body), created)
+
+		// ID was populated
+		require.True(t, len(created.Id) > 0)
+
+		// We have the neg we expect - the one we posted above
+		require.Equal(t, "FP4", created.Film)
+		require.Equal(t, "", created.Format)
+
+		// Create and Updated time was populated, and not equal to the zero value
+		require.True(t, time.Now().After(created.Created))
+		require.True(t, time.Now().After(created.Updated))
+		require.False(t, created.Created.IsZero())
+		require.False(t, created.Updated.IsZero())
+		log.Printf("*** %v ***", created)
+	})
+
+	require.NotNil(t, req)
+	attempt(req, MyVerifier, t)
 }
 
 func Test_ServerNegNotImpl(t *testing.T) {
@@ -139,12 +188,16 @@ func Test_ServerNegNotImpl(t *testing.T) {
 		io.Copy(b, res.Body)
 		assert.True(t, strings.Contains(b.String(), "not implemented"))
 
-	}).testState(t)
+	})
 
-	attempt(req, MyVerifier)
+	attempt(req, MyVerifier, t)
 }
 
-func attempt(req *http.Request, v *verifier) {
+func attempt(req *http.Request, v *verifier, t *testing.T) {
+	require.NotNil(t, req, "Request must not be nil.")
+	require.NotNil(t, req.URL, "Request URL must not be nil.")
+	require.NotNil(t, v, "Verifier must not be nil.")
+
 	var res *http.Response
 	var err error
 	times := v.Attempts
@@ -164,7 +217,7 @@ func attempt(req *http.Request, v *verifier) {
 	}
 
 	if err != nil {
-		assert.Nil(v.TestState, err, "Error executing query %s %s after %v attempts: %s", req.Method, req.URL.String(), times, err.Error())
+		require.Nil(t, err, "Error executing query %s %s after %v attempts: %s", req.Method, req.URL.String(), times, err.Error())
 	}
 
 	defer func() {
@@ -173,5 +226,21 @@ func attempt(req *http.Request, v *verifier) {
 		}
 	}()
 
-	v.ResVerifier(v.TestState, res)
+	v.ResVerifier(t, res)
+}
+
+func asString(reader io.Reader) string {
+	if b, err := ioutil.ReadAll(reader); err != nil {
+		panic(err)
+	} else {
+		return string(b)
+	}
+}
+
+func asByte(reader io.Reader) []byte {
+	if b, err := ioutil.ReadAll(reader); err != nil {
+		panic(err)
+	} else {
+		return b
+	}
 }
