@@ -9,7 +9,7 @@ import (
 	"github.com/emetsger/negtracker/model"
 	"github.com/emetsger/negtracker/urlutil/strip"
 	"github.com/stretchr/testify/assert"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"log"
