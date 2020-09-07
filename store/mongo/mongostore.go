@@ -104,6 +104,17 @@ func (m *MongoStore) Configure(c interface{}) {
 
 	m.db = m.client.Database(config.DbName)
 	m.negCol = m.db.Collection(config.NegCollection)
+
+	// create unique index on business id for the NegCollection
+	idxKeys := bson.D{{"id", 1}}
+	idxBool := true
+	idxName := "Negative Business Id"
+	idxOpts := options.IndexOptions{Unique: &idxBool, Name: &idxName}
+	if idxName, idxErr := m.negCol.Indexes().CreateOne(m.ctx, mongo.IndexModel{idxKeys, &idxOpts}); idxErr != nil {
+		panic("Unable to create unique business id index on NegCollection, " + idxErr.Error())
+	} else {
+		log.Printf("Created unique business id index on %s, %s", config.NegCollection, idxName)
+	}
 }
 
 func verifyConfig(c interface{}) MongoConfig {
