@@ -17,7 +17,7 @@ import (
 var underTest = &MongoStore{}
 
 var sampleNeg = model.Neg{
-	ID:          "negId",
+	Id:          "negId",
 	Film:        "Tri-X",
 	EI:          200,
 	Developer:   "HC-110 (B)",
@@ -28,12 +28,13 @@ var sampleNeg = model.Neg{
 }
 
 func TestMongoStore_StoreAndRetrieve(t *testing.T) {
-	id, err := underTest.Store(sampleNeg)
+	businessId := sampleNeg.Id
+	persistenceId, err := underTest.Store(sampleNeg)
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", id)
+	assert.NotEqual(t, "", persistenceId)
 
 	neg := model.Neg{}
-	err = underTest.Retrieve(id, &neg)
+	err = underTest.Retrieve(businessId, &neg)
 	assert.Nil(t, err)
 	assert.NotNil(t, neg)
 
