@@ -5,10 +5,10 @@ import (
 	"strconv"
 )
 
-func MalformedRequest(w http.ResponseWriter, r *http.Request, reason string) {
+func Conflict(w http.ResponseWriter, r *http.Request, reason string) {
 	bytes := []byte(reason)
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
-	w.WriteHeader(400)
+	w.WriteHeader(409)
 	_, _ = w.Write(bytes)
 }

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/emetsger/negtracker/id"
 	"github.com/emetsger/negtracker/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,7 +88,9 @@ func Test_ServerMain(t *testing.T) {
 
 // test creating a Neg
 func Test_ServerNegPost(t *testing.T) {
-	body, err := json.Marshal(sampleNeg)
+	neg := sampleNeg
+	neg.Id = id.Mint()
+	body, err := json.Marshal(neg)
 	assert.Nil(t, err)
 	req, _ := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("%s/neg", config.ListenUrl()),
@@ -104,6 +107,91 @@ func Test_ServerNegPost(t *testing.T) {
 		assert.NotEqual(t, "", res.Header.Get("Content-Length"))
 		atoi, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 		assert.True(t, atoi > 0)
+	}).attempt(req, t)
+}
+
+// test creating a neg with an absent ID field, should be populated
+func Test_ServerNegPostNoId(t *testing.T) {
+	body := bytes.NewBufferString(`{"Film": "Moo"}`)
+	req, _ := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/neg", config.ListenUrl()),
+		body)
+
+	// TODO accept and content-type header support/verification
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
+
+	var id string
+
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 201, res.StatusCode)
+		id = asString(res.Body)
+	}).attempt(req, t)
+
+	req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/neg/%s", config.ListenUrl(), id), nil)
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 200, res.StatusCode)
+		created := &model.Neg{}
+		json.Unmarshal(asByte(res.Body), created)
+		assert.NotEqual(t, "", created.Id)
+	}).attempt(req, t)
+}
+
+// test creating a neg with an empty ID field, should be populated
+func Test_ServerNegPostEmptyId(t *testing.T) {
+	body := bytes.NewBufferString(`{"Id": "", "Film": "Moo"}`)
+	req, _ := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/neg", config.ListenUrl()),
+		body)
+
+	// TODO accept and content-type header support/verification
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
+
+	var id string
+
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 201, res.StatusCode)
+		id = asString(res.Body)
+	}).attempt(req, t)
+
+	req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/neg/%s", config.ListenUrl(), id), nil)
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 200, res.StatusCode)
+		created := &model.Neg{}
+		json.Unmarshal(asByte(res.Body), created)
+		assert.NotEqual(t, "", created.Id)
+	}).attempt(req, t)
+}
+
+// test creating a neg with a duplicate ID field, should be rejected
+func Test_ServerNegPostDuplicateId(t *testing.T) {
+	id := id.Mint()
+	body := fmt.Sprintf(`{"Id": "%s", "Film": "Moo"}`, id)
+	req, _ := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/neg", config.ListenUrl()),
+		bytes.NewBufferString(body))
+
+	// TODO accept and content-type header support/verification
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
+
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 201, res.StatusCode)
+		assert.Equal(t, id, asString(res.Body))
+	}).attempt(req, t)
+
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/neg", config.ListenUrl()),
+		bytes.NewBufferString(body))
+
+	MyVerifier.verifyFunc(func(t *testing.T, res *http.Response) {
+		assert.Equal(t, 409, res.StatusCode)
+		body := asString(res.Body)
+		assert.True(t, len(body) > 0)
+		log.Printf("Conflict request body: %s", body)
 	}).attempt(req, t)
 }
 

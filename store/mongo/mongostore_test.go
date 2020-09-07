@@ -3,10 +3,15 @@
 package mongo
 
 import (
+	"errors"
 	"fmt"
+	"github.com/emetsger/negtracker/id"
 	"github.com/emetsger/negtracker/model"
 	"github.com/emetsger/negtracker/store"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	"os"
 	"strconv"
@@ -28,7 +33,8 @@ var sampleNeg = model.Neg{
 }
 
 func TestMongoStore_StoreAndRetrieve(t *testing.T) {
-	businessId := sampleNeg.Id
+	businessId := id.Mint()
+	sampleNeg.Id = businessId
 	persistenceId, err := underTest.Store(sampleNeg)
 	assert.Nil(t, err)
 	assert.NotEqual(t, "", persistenceId)
@@ -39,6 +45,41 @@ func TestMongoStore_StoreAndRetrieve(t *testing.T) {
 	assert.NotNil(t, neg)
 
 	assert.Equal(t, sampleNeg, neg)
+}
+
+func TestMongoStore_dupKeyCause(t *testing.T) {
+	var err error
+
+	_, err = underTest.negCol.InsertOne(underTest.ctx, bson.M{idField: "1"})
+	require.Nil(t, err)
+
+	_, err = underTest.negCol.InsertOne(underTest.ctx, bson.M{idField: "1"})
+	require.NotNil(t, err)
+
+	// errors.Is and errors.As are broken for mongo.WriteException, I believe
+	wex, ok := err.(mongo.WriteException)
+	require.True(t, ok)
+
+	for i := range wex.WriteErrors {
+		we := err.(mongo.WriteException).WriteErrors[i]
+		require.Equal(t, errCodeDupKey, we.Code)
+	}
+
+	// the logic above is used in dupKeyCause(error) function
+	require.True(t, dupKeyCause(err))
+}
+
+func TestMongoStore_DuplicateBusinessIds(t *testing.T) {
+	obj := sampleNeg
+	obj.Id = "TestMongoStore_DuplicateBusinessIds"
+
+	_, err := underTest.Store(obj)
+	require.Nil(t, err)
+
+	_, err = underTest.Store(obj)
+
+	require.True(t, errors.Is(err, store.DuplicateKeyErr))
+	log.Print(err.Error())
 }
 
 func TestMain(m *testing.M) {
