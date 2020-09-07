@@ -3,12 +3,22 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"github.com/emetsger/negtracker/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"strings"
 )
+
+// Used to identify the field that mongo will use for storing business ids on persisted documents
+//
+// Note: the value of this constant must align with the entity structs in the `model` package; the structs must use a
+// field named `Id`, or have a bson tag that maps the entity's business id field to "id", e.g.:
+//   type struct Foo {
+//   	FooId string `bson:"id"`
+//   }
+const idField = "id"
 
 // Represents the configuration used for the MongoDB driver
 type MongoConfig struct {
@@ -31,15 +41,23 @@ type MongoStore struct {
 }
 
 func (m *MongoStore) Retrieve(id string, t interface{}) (err error) {
-	var objid primitive.ObjectID
-	if objid, err = primitive.ObjectIDFromHex(id); err != nil {
-		panic(fmt.Sprintf("Error creating ObjectId from id '%s'", id))
+	var res *mongo.SingleResult
+
+	// If t is an WebResource, then treat the supplied id as a business identifier,
+	// otherwise treat it as a persistence identifier.
+
+	// Granted, this implementation does not need to perform this check; any document can be retrieved from Mongo as
+	// long as its key can be found in the `idField`.
+
+	// The only reason this check is here is to prevent a programmer error, where the caller may be attempting to
+	// retrieve something that is not a business object.
+
+	if _, ok := t.(model.WebResource); !ok {
+		panic(fmt.Sprintf("store/mongo: can only retrieve objects of type model.WebResource, not %T", t))
+	} else {
+		res = m.negCol.FindOne(m.ctx, bson.M{idField: id})
 	}
 
-	res := m.negCol.FindOne(m.ctx, bson.M{"_id": objid})
-	//v := &model.Neg{
-	//	ID: "moo",
-	//}
 	err = res.Decode(t)
 
 	return
