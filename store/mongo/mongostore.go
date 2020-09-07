@@ -2,12 +2,15 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/emetsger/negtracker/model"
+	"github.com/emetsger/negtracker/store"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log"
 	"strings"
 )
 
@@ -18,7 +21,11 @@ import (
 //   type struct Foo {
 //   	FooId string `bson:"id"`
 //   }
-const idField = "id"
+
+const (
+	idField       = "id"
+	errCodeDupKey = 11000
+)
 
 // Represents the configuration used for the MongoDB driver
 type MongoConfig struct {
@@ -40,7 +47,7 @@ type MongoStore struct {
 	negCol *mongo.Collection
 }
 
-func (m *MongoStore) Retrieve(id string, t interface{}) (err error) {
+func (m *MongoStore) Retrieve(id string, t interface{}) error {
 	var res *mongo.SingleResult
 
 	// If t is an WebResource, then treat the supplied id as a business identifier,
@@ -58,14 +65,20 @@ func (m *MongoStore) Retrieve(id string, t interface{}) (err error) {
 		res = m.negCol.FindOne(m.ctx, bson.M{idField: id})
 	}
 
-	err = res.Decode(t)
+	err := res.Decode(t)
 
-	return
+	if err != nil {
+		return store.SentinelErr(store.DecodingErr, fmt.Sprintf("type:  %T", t), fmt.Sprintf("%v", err))
+	}
+
+	return nil
 }
 
-func (m *MongoStore) Store(obj interface{}) (id string, err error) {
+func (m *MongoStore) Store(obj interface{}) (string, error) {
 	var data []byte
 	var res *mongo.InsertOneResult
+	var id string
+	var err error
 
 	if data, err = bson.Marshal(obj); err == nil {
 		if res, err = m.negCol.InsertOne(m.ctx, data); err == nil {
@@ -73,7 +86,16 @@ func (m *MongoStore) Store(obj interface{}) (id string, err error) {
 		}
 	}
 
-	return
+	if err != nil {
+		if dupKeyCause(err) {
+			return id, store.SentinelErr(store.DuplicateKeyErr, "underlying error", fmt.Sprintf("%v", err))
+		} else {
+			return id, store.GenericErr(fmt.Sprintf("attempt to insert document with key %s failed", id),
+				fmt.Sprintf("%v", err))
+		}
+	}
+
+	return id, nil
 }
 
 func (m *MongoStore) Configure(c interface{}) {
@@ -140,4 +162,22 @@ func checkLen(fieldName, fieldValue string) {
 	if len(strings.TrimSpace(fieldValue)) == 0 {
 		panic(fmt.Sprintf("store/mongo: %s is required", fieldName))
 	}
+}
+
+// Returns true if the error is a mongo.WriteException caused by insertion of a duplicate key into a unique index
+func dupKeyCause(err error) bool {
+	wex := mongo.WriteException{}
+
+	if !errors.As(err, &wex) {
+		return false
+	}
+
+	for i := range wex.WriteErrors {
+		werr := wex.WriteErrors[i]
+		if werr.Code == errCodeDupKey {
+			return true
+		}
+	}
+
+	return false
 }
