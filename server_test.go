@@ -82,9 +82,7 @@ func Test_ServerMain(t *testing.T) {
 		_, _ = io.Copy(&buf, res.Body)
 		assert.Equal(t, 200, res.StatusCode)
 		assert.Equal(t, "Pong!", buf.String())
-	})
-
-	attempt(req, MyVerifier, t)
+	}).attempt(req, t)
 }
 
 // test creating a Neg
@@ -106,9 +104,7 @@ func Test_ServerNegPost(t *testing.T) {
 		assert.NotEqual(t, "", res.Header.Get("Content-Length"))
 		atoi, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 		assert.True(t, atoi > 0)
-	})
-
-	attempt(req, MyVerifier, t)
+	}).attempt(req, t)
 }
 
 // TODO fix ids - test retrieving a Neg
@@ -128,9 +124,7 @@ func Test_ServerNegGet(t *testing.T) {
 		// FIXME post should be setting a Location header and we should be reading that
 		id = asString(res.Body)
 		require.NotEqual(t, "", id)
-	})
-
-	attempt(req, MyVerifier, t)
+	}).attempt(req, t)
 
 	log.Printf("Created neg with id %s", id)
 
@@ -170,10 +164,7 @@ func Test_ServerNegGet(t *testing.T) {
 		require.False(t, created.Created.IsZero())
 		require.False(t, created.Updated.IsZero())
 		log.Printf("*** %v ***", created)
-	})
-
-	require.NotNil(t, req)
-	attempt(req, MyVerifier, t)
+	}).attempt(req, t)
 }
 
 func Test_ServerNegNotImpl(t *testing.T) {
@@ -187,15 +178,12 @@ func Test_ServerNegNotImpl(t *testing.T) {
 		io.Copy(b, res.Body)
 		assert.True(t, strings.Contains(b.String(), "not implemented"))
 
-	})
-
-	attempt(req, MyVerifier, t)
+	}).attempt(req, t)
 }
 
-func attempt(req *http.Request, v *verifier, t *testing.T) {
+func (v *verifier) attempt(req *http.Request, t *testing.T) {
 	require.NotNil(t, req, "Request must not be nil.")
 	require.NotNil(t, req.URL, "Request URL must not be nil.")
-	require.NotNil(t, v, "Verifier must not be nil.")
 
 	var res *http.Response
 	var err error
