@@ -29,16 +29,16 @@ func Test_GetBusinessId(t *testing.T) {
 	expectedLock := bid.l
 	require.Equal(t, 1, len(locks.table))
 	require.Equal(t, 1, locks.lru.Len())
-	require.Same(t, expectedLock, locks.lru.Front().Value)
-	require.Same(t, expectedLock, locks.table[idTypeTuple{uuid, typeAsString(bidType)}].Value)
+	require.Same(t, expectedLock, locks.lru.Front().Value.(pair).l)
+	require.Same(t, expectedLock, locks.table[idTypeTuple{uuid, typeAsString(bidType)}].Value.(pair).l)
 
 	// Unlock the business id later, which shouldn't change the size of the table or its values.
 	bid.Unlock()
 
 	require.Equal(t, 1, len(locks.table))
 	require.Equal(t, 1, locks.lru.Len())
-	require.Same(t, expectedLock, locks.lru.Front().Value)
-	require.Same(t, expectedLock, locks.table[idTypeTuple{uuid, typeAsString(bidType)}].Value)
+	require.Same(t, expectedLock, locks.lru.Front().Value.(pair).l)
+	require.Same(t, expectedLock, locks.table[idTypeTuple{uuid, typeAsString(bidType)}].Value.(pair).l)
 
 	// Get the same business id but assign to a different variable.  The table and list size shouldn't change.
 	bid2 := GetId(uuid, bidType)

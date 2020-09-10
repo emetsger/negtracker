@@ -75,10 +75,15 @@ type lockTable struct {
 	mu sync.Mutex
 	// The capacity of the table and lru
 	cap int
-	// Maps idTypeTuple to list elements (whose Value() returns *sync.Mutex)
+	// Maps idTypeTuple to list elements (whose Value() returns a pair)
 	table map[idTypeTuple]*list.Element
 	// lru of BusinessId instances
 	lru *list.List // elements are BusinessId instances
+}
+
+type pair struct {
+	tuple idTypeTuple
+	l     *sync.Mutex
 }
 
 // Global lock table, with a capacity for 100 business ids.  When the capacity is exceeded, the table is scanned and
@@ -100,37 +105,33 @@ func getLock(tuple idTypeTuple) *sync.Mutex {
 	// if so, push it to the head of the list and return it
 	if elem, ok := locks.table[tuple]; ok {
 		locks.lru.MoveToFront(elem)
-		return elem.Value.(*sync.Mutex)
+		return elem.Value.(pair).l
 	}
 
 	// if the type tuple does not exist in the table:
-	// 	1. create a new *sync.Mutex for the type tuple
-	//	2. push the *sync.Mutex onto the head of the list
-	//	3. put the resulting element in the table for the tuple
+	// 	1. create a new pair{tuple, *sync.Mutex}
+	//	2. push the pair onto the head of the list, resulting in a new element
+	//	3. put the element in the table for the tuple
 	//  4a. if the list has exceeded capacity, 4b. remove the list tail and its corresponding entry in the table
 	//	5. return the lock for the id
 
-	l := &sync.Mutex{}             // 1
-	elem := locks.lru.PushFront(l) // 2
-	locks.table[tuple] = elem      // 3
+	p := pair{tuple, &sync.Mutex{}} // 1
+	elem := locks.lru.PushFront(p)  // 2
+	locks.table[tuple] = elem       // 3
 
 	// TODO: this is quite sub-optimal.  Once the table fills to capacity, it is scanned each time for values to
 	//  evict.  It would be nice to avoid this scan.
 	if locks.lru.Len() > locks.cap { // 4a
 		eValue := locks.lru.Remove(locks.lru.Back()) // 4b
-		eValue.(*sync.Mutex).Lock()                  // FIXME: locked entries can't be removed so this may block,
+		eValue.(pair).l.Lock()                       // FIXME: locked entries can't be removed so this may block,
 		//  preventing other ids from being generated.  This will
 		//  happen when > cap business ids have been Locked(), yet
 		//  to be Unlock()ed
-		defer func() { eValue.(*sync.Mutex).Unlock() }()
+		defer func() { eValue.(pair).l.Unlock() }()
 
-		// scan map values to remove the lru entry
-		for k, v := range locks.table {
-			if v.Value == eValue {
-				delete(locks.table, k) // 4b
-			}
-		}
+		// remove the Element with the pair from the map
+		delete(locks.table, eValue.(pair).tuple)
 	}
 
-	return l
+	return p.l
 }
